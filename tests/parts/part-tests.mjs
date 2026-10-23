@@ -3,7 +3,7 @@ import '../diagnostic_scripts.js';
 import {with_scorm, SCORM_API} from './scorm_api.mjs';
 import {unit_test_exam, unit_test_questions} from './part_unit_tests.mjs';
 
-Numbas.queueScript('part_tests',['qunit','json','jme','localisation','parts/numberentry','parts/jme','parts/matrixentry', 'parts/multipleresponse', 'parts/patternmatch','parts/gapfill','question','exam'],function() {
+Numbas.queueScript('part_tests',['qunit','json','jme','localisation','parts/numberentry','parts/jme','parts/matrixentry', 'parts/multipleresponse', 'parts/patternmatch','parts/gapfill','question','exam','start-exam'],function() {
     var QUnit;
     try {
         var QUnit = global.QUnit;
@@ -2737,6 +2737,85 @@ mark:
                 done();
             }
         );
+    });
+
+    QUnit.test('Review mode without suspend data starts a fresh read-only attempt', async function(assert) {
+        var exam_def = {
+            name: 'Exam',
+            question_groups: [
+                {
+                    questions: [
+                        {
+                            name: 'Q',
+                            parts: [{type: 'numberentry', minvalue: '1', maxvalue: '1', marks: 1}]
+                        }
+                    ]
+                }
+            ]
+        };
+
+        const init_promise = Numbas.init_promise;
+        Numbas.init_promise = Promise.resolve();
+        try {
+            await with_scorm(
+                async function(data, results, scorm) {
+                    scorm.data['cmi.mode'] = 'review';
+                    scorm.data['cmi.entry'] = '';
+                    const initial_data = JSON.parse(JSON.stringify(scorm.data));
+
+                    const exam = await Numbas.init_exam(exam_def, scorm_storage(), false);
+                    await exam.signals.on('ready');
+
+                    assert.equal(exam.entry, 'ab-initio', 'A review launch with no saved attempt starts afresh');
+                    assert.strictEqual(exam.store.constructor, Numbas.storage.Storage, 'The fresh review attempt uses blank storage');
+                    assert.deepEqual(scorm.data, initial_data, 'The fresh review attempt does not write to SCORM storage');
+                    assert.ok(scorm.terminated, 'The unused SCORM connection is closed');
+                    exam.end(false);
+                }
+            );
+        } finally {
+            Numbas.init_promise = init_promise;
+        }
+    });
+
+    QUnit.test('Review mode with suspend data loads the saved attempt', async function(assert) {
+        var exam_def = {
+            name: 'Exam',
+            question_groups: [
+                {
+                    questions: [
+                        {
+                            name: 'Q',
+                            parts: [{type: 'numberentry', minvalue: '1', maxvalue: '1', marks: 1}]
+                        }
+                    ]
+                }
+            ]
+        };
+
+        const init_promise = Numbas.init_promise;
+        Numbas.init_promise = Promise.resolve();
+        try {
+            await with_scorm(
+                async function() {
+                    const exam = Numbas.createExamFromJSON(exam_def, scorm_storage(), false);
+                    exam.init();
+                    await exam.signals.on('ready');
+                },
+                async function(data, results, scorm) {
+                    scorm.data['cmi.mode'] = 'review';
+                    assert.ok(scorm.data['cmi.suspend_data'], 'The first session saved attempt data');
+
+                    const exam = await Numbas.init_exam(exam_def, scorm_storage(), false);
+                    await exam.signals.on('ready');
+
+                    assert.equal(exam.entry, 'review', 'A review launch with saved data loads in review mode');
+                    assert.ok(exam.store instanceof Numbas.storage.scorm.SCORMStorage, 'The saved attempt keeps SCORM storage');
+                }
+            );
+        } finally {
+            Numbas.init_promise = init_promise;
+        }
     });
 
     QUnit.test('Resume an exam',async function(assert) {

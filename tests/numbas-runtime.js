@@ -30120,16 +30120,21 @@ Numbas.queueScript('start-exam', ['base', 'util', 'exam', 'settings'], function(
 
         return new Promise((resolve) => {
             job(function() {
+                var entry = store.getEntry();
+                if(store.getMode() == 'review') {
+                    if(entry == 'ab-initio') {
+                        store.close();
+                        store = new Numbas.storage.Storage();
+                    } else {
+                        entry = 'review';
+                    }
+                }
+
                 var external_seed = store.get_initial_seed();
                 var seed = external_seed || options?.seed || Math.floor(Math.random() * Number.MAX_SAFE_INTEGER).toString();
                 Math.seedrandom(seed);
                 var exam = Numbas.createExamFromJSON(exam_data, store, element, scheduler);
                 exam.seed = seed;
-
-                var entry = store.getEntry();
-                if(store.getMode() == 'review') {
-                    entry = 'review';
-                }
                 exam.entry = entry;
 
                 exam.signals.on('exam ready').catch((error) => {
@@ -30318,6 +30323,11 @@ class SCORMStorage extends Numbas.storage.Storage {
             }
         }
         trySave();
+    }
+
+    /** Close the connection to the LMS without saving any exam data. */
+    close() {
+        pipwerks.SCORM.quit();
     }
 
     /** Set a SCORM data model element.
@@ -30736,7 +30746,7 @@ class SCORMStorage extends Numbas.storage.Storage {
         this.setSuspendData();
         this.set('cmi.success_status', this.exam.passed ? 'passed' : 'failed');
         this.set('cmi.completion_status', 'completed');
-        pipwerks.SCORM.quit();
+        this.close();
     }
 
     /** Get the student's ID.
@@ -30753,6 +30763,9 @@ class SCORMStorage extends Numbas.storage.Storage {
      * @returns {string}
      */
     getEntry() {
+        if(this.getMode() == 'review' && !this.get('cmi.suspend_data')) {
+            return 'ab-initio';
+        }
         return this.get('cmi.entry');
     }
 
@@ -31037,6 +31050,13 @@ class Storage {
      * @abstract
      */
     save() {
+    }
+
+    /** Close the backing storage connection without ending an exam.
+     *
+     * @abstract
+     */
+    close() {
     }
 
     /** Load student's name and ID.

@@ -13,3 +13,4 @@ QUnit.config.notrycatch = true;
 
 Numbas.queueScript('base',[],function() {});
 Numbas.queueScript('qunit',[],function() {});
+Numbas.queueScript('settings',[],function() {});

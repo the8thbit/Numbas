@@ -118,6 +118,11 @@ class SCORMStorage extends Numbas.storage.Storage {
         trySave();
     }
 
+    /** Close the connection to the LMS without saving any exam data. */
+    close() {
+        pipwerks.SCORM.quit();
+    }
+
     /** Set a SCORM data model element.
      *
      * @param {string} key - Element name. This is prepended with `cmi.`.
@@ -534,7 +539,7 @@ class SCORMStorage extends Numbas.storage.Storage {
         this.setSuspendData();
         this.set('cmi.success_status', this.exam.passed ? 'passed' : 'failed');
         this.set('cmi.completion_status', 'completed');
-        pipwerks.SCORM.quit();
+        this.close();
     }
 
     /** Get the student's ID.
@@ -551,6 +556,9 @@ class SCORMStorage extends Numbas.storage.Storage {
      * @returns {string}
      */
     getEntry() {
+        if(this.getMode() == 'review' && !this.get('cmi.suspend_data')) {
+            return 'ab-initio';
+        }
         return this.get('cmi.entry');
     }
 

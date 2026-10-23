@@ -114,16 +114,21 @@ Numbas.queueScript('start-exam', ['base', 'util', 'exam', 'settings'], function(
 
         return new Promise((resolve) => {
             job(function() {
+                var entry = store.getEntry();
+                if(store.getMode() == 'review') {
+                    if(entry == 'ab-initio') {
+                        store.close();
+                        store = new Numbas.storage.Storage();
+                    } else {
+                        entry = 'review';
+                    }
+                }
+
                 var external_seed = store.get_initial_seed();
                 var seed = external_seed || options?.seed || Math.floor(Math.random() * Number.MAX_SAFE_INTEGER).toString();
                 Math.seedrandom(seed);
                 var exam = Numbas.createExamFromJSON(exam_data, store, element, scheduler);
                 exam.seed = seed;
-
-                var entry = store.getEntry();
-                if(store.getMode() == 'review') {
-                    entry = 'review';
-                }
                 exam.entry = entry;
 
                 exam.signals.on('exam ready').catch((error) => {

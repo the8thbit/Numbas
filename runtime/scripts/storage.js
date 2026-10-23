@@ -110,6 +110,13 @@ class Storage {
     save() {
     }
 
+    /** Close the backing storage connection without ending an exam.
+     *
+     * @abstract
+     */
+    close() {
+    }
+
     /** Load student's name and ID.
      *
      * @abstract
